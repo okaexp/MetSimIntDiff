@@ -12,19 +12,17 @@ library(scales)
 # source("./anovakun_482.txt")
 
 #ローデータの読み込み ----
-raw_dat <- read.csv("../data/raw_dat/20240301_MetSimDiff_Study2_20240301_1436.csv")
+raw_dat <- read.csv("../data/raw_dat/20240301_MetSimDiff_Study2_20240301_1436.csv", fileEncoding="shift-jis")
 
 #必要データの読み込み ----
 dat <- raw_dat %>%
   dplyr::slice(3:nrow(raw_dat)) %>%#データの読み込み
-  dplyr::select(Duration..in.seconds., starts_with("D_"), starts_with("P_"), starts_with("Q")) %>%#必要列の抽出
   dplyr::select(-P_ID) %>%
-  dplyr::mutate(ElapsedTime = as.integer(Duration..in.seconds.),
-                Sex = as.factor(D_Sex),
+  dplyr::mutate(Sex = as.factor(D_Sex),
                 Age = as.integer(D_Age),
-                Academic = as.integer(D_AcademicDegree.),
-                CWID = as.factor(D_CWID.)) %>%
-  dplyr::select(-Duration..in.seconds., -D_Sex, -D_Age, -D_AcademicDegree., -D_CWID.) %>%
+                Academic = as.integer(D_AcademicDegree),
+                ID = as.factor(ID)) %>%
+  dplyr::select(-D_Sex, -D_Age, -D_AcademicDegree) %>%
   dplyr::mutate_at(.vars = vars(starts_with("Q")), .funs = as.integer) %>%#本番の回答はまとめて
   dplyr::mutate_at(.vars = vars(starts_with("P_")), .funs = as.integer)#練習の回答はまとめて
 
@@ -57,9 +55,9 @@ dat_sex <- dat_valid_resp %>%
 
 #分析用のデータをロング型に整形 ----
 dat_valid_long <- dat_valid_resp %>%
-  dplyr::select(-Sex, -Age, -P_Pra1_1, -P_Pra1_2, -P_Pra2_1, -P_Pra2_2, -ElapsedTime, -Academic) %>%
+  dplyr::select(-Sex, -Age, -P_Pra1_1, -P_Pra1_2, -P_Pra2_1, -P_Pra2_2, -Academic, -F_Agre) %>%
   tidyr::gather(key = Questions, value = Value,
-                -CWID) %>% 
+                -ID) %>% 
   tidyr::separate(col = Questions, into = c("QID", "Condition"), sep="_") %>%
   tidyr::separate(col = Condition, into = c("MetSim", "FeatID"), sep="P") %>%
   tidyr::drop_na()
@@ -73,7 +71,7 @@ dat_valid_long <- dat_valid_resp %>%
 #データの整形：棒グラフ用
 #SDは参加者平均から算出
 dat_participant_mean <- dat_valid_long %>%
-  dplyr::group_by(CWID, MetSim) %>%
+  dplyr::group_by(ID, MetSim) %>%
   dplyr::summarise(Average = mean(Value)) %>%
   dplyr::mutate(MetSim = as.factor(MetSim))
 
@@ -108,6 +106,6 @@ plot(g)
 
 #ランダム相関を計算しないモデル
 #論文で報告するのはこっち
-res_lmer_dat <- lmer(formula = Value ~ MetSim + (1 + MetSim|CWID) + (1 + MetSim|QID),
+res_lmer_dat <- lmer(formula = Value ~ MetSim + (1 + MetSim|ID) + (1 + MetSim|ID),
                       data = dat_valid_long)
 summary(res_lmer_dat)
